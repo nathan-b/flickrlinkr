@@ -1,0 +1,173 @@
+<html>
+<head>
+	<title>Magical land of happiness</title>
+</head>
+
+<body>
+
+<h2>Put your flickr URLs here (one per line)</h2>
+<textarea rows="10" cols="120" wrap="off" id="inbox">
+</textarea><br /><br />
+
+Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)<br />
+
+<button onclick="i_pooped()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="document.getElementById('outbox').value='';">Clear the thing</button>
+
+<h2>Your HTML will be emitted here</h2>
+
+<textarea rows="35" cols="120" readonly id="outbox">
+</textarea>
+
+<h3>Ignore anything below this line</h3>
+<textarea rows="10" cols="120" readonly id="console">
+</textarea>
+
+<script language="javascript">
+window.resizeTo(1024, 1024);
+window.moveTo(0,0);
+
+// Some boilerplate to make AJAX less heinous...
+// Makes some assumptions about our problem domain...
+function onreadystatechange(ajax)
+{
+	switch(ajax.request.readyState)
+	{
+	case 1: break;
+	case 2: break;
+	case 3: break;
+	case 4:
+		if (ajax.in_progress) {
+			ajax.in_progress = false;
+			if (ajax.request.status == 200) {
+				ajax.callback_method(ajax.request.responseText);
+			}
+		}
+	}
+}
+
+function getrequest(url, callback)
+{
+	var ajax = new Object();
+	ajax.in_progress = true;
+	ajax.callback_method = callback;
+	ajax.request = (window.XMLHttpRequest) ? new XMLHttpRequest() : new ActiveXObject("MSXML2.XMLHTTP");
+	ajax.request.onreadystatechange = function() { onreadystatechange(ajax) };
+	ajax.request.open('GET', url, true);
+	ajax.request.send(url);
+}
+
+// Some functions to print to our various textboxes (SUPAR LAZY PROGRAMMER GO)
+
+function print_console(txt)
+{
+	var outelem = document.getElementById('console');
+	outelem.value += txt + "\n"
+}
+
+function print_outbox(txt)
+{
+	var outelem = document.getElementById('outbox');
+	outelem.value += txt + "\n";
+}
+
+function get_size()
+{
+	var sz = parseInt(document.getElementById('size').value);
+	if (!sz) {
+		sz = 0;
+	}
+	return sz;
+}
+
+function build_html_string(disp_url, orig_url, width, height)
+{
+	return '<a href="' + orig_url + '"><img class="alignnone" src=" ' + disp_url + '" alt="" width="' + width + '" height="' + height + '" /></a>'
+}
+
+// Handle the response data as a text string
+function process_one_url_response(txt)
+{
+	print_console('Got response with text length ' + txt.length);
+	
+	//print_console(txt);
+	//return;
+	
+	// Gotta find the requisite JSON buried inside the text...
+	// because text processing in Javascript definitely doesn't make
+	// me want to kill myself...
+	
+	var arr = txt.split('Y.ClientApp.init(');
+	
+	if (arr.length == 1) {
+		print_console('i died');
+		return;
+	}
+	
+	var mxp = arr[1].split(')')[0];
+	
+	if (!mxp) {
+		print_console('i pooped');
+		return;
+	}
+	
+	// I need to define these things here because they're used in the JSON
+	
+	var auth = '';
+	var reqId = '';
+	
+	var json = '(' + mxp + ')';
+	
+	var img = eval(json);
+	var sizes = img['modelExport']['photo-models'][0]['sizes'];
+	
+	// flickr uses incomprehensible letters to represent its sizes. Forget that. Let's
+	// just try and find one that matches the user-preferred size. I'm assuming that
+	// 'o' is the original; i.e. the largest size.
+	var my_size = get_size();
+	var best = 'o';  // If the user doesn't specify, just give the largest
+	
+	if (my_size > 0) {
+		var best_diff = 100000000;
+		
+		for (var k in sizes) {
+			var w = sizes[k]['width'];
+			var h = sizes[k]['height'];
+			
+			if (Math.abs(my_size - w) < best_diff) {
+				best = k;
+				best_diff = Math.abs(my_size - w);
+			}
+			if (Math.abs(my_size - h) < best_diff) {
+				best = k;
+				best_diff = Math.abs(my_size - h);
+			}
+		}
+	}
+	
+	print_console("Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
+	print_console("Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
+	
+	disp_url = 'https:' + sizes[best]['displayUrl'];
+	orig_url = 'https:' + sizes['o']['displayUrl'];
+	disp_w = sizes[best]['width'];
+	disp_h = sizes[best]['height'];
+	
+	print_outbox(build_html_string(disp_url, orig_url, disp_w, disp_h));
+	print_outbox('');
+}
+
+function i_pooped()
+{
+	var urlelem = document.getElementById('inbox');
+	var urls = urlelem.value.split("\n");
+	            
+	print_console("Starting");
+	
+	for (var i = 0; i < urls.length; ++i) {
+		getrequest(urls[i], process_one_url_response);
+	}
+}
+
+</script>
+
+</body>
