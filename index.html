@@ -11,7 +11,7 @@
 
 Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)<br />
 
-<button onclick="i_pooped()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="document.getElementById('outbox').value='';">Clear the thing</button>
+<button onclick="gogogo()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="document.getElementById('outbox').value='';">Clear the thing</button>
 
 <h2>Your HTML will be emitted here</h2>
 
@@ -88,51 +88,47 @@ function build_html_string(disp_url, orig_url, width, height)
 function process_one_url_response(txt)
 {
 	print_console('Got response with text length ' + txt.length);
-	
-	//print_console(txt);
-	//return;
-	
+
 	// Gotta find the requisite JSON buried inside the text...
 	// because text processing in Javascript definitely doesn't make
 	// me want to kill myself...
-	
+
 	var arr = txt.split('Y.ClientApp.init(');
-	
+
 	if (arr.length == 1) {
 		print_console('i died');
 		return;
 	}
-	
+
 	var mxp = arr[1].split(')')[0];
-	
+
 	if (!mxp) {
 		print_console('i pooped');
 		return;
 	}
-	
+
 	// I need to define these things here because they're used in the JSON
-	
 	var auth = '';
 	var reqId = '';
-	
+
 	var json = '(' + mxp + ')';
-	
+
 	var img = eval(json);
 	var sizes = img['modelExport']['photo-models'][0]['sizes'];
-	
+
 	// flickr uses incomprehensible letters to represent its sizes. Forget that. Let's
 	// just try and find one that matches the user-preferred size. I'm assuming that
 	// 'o' is the original; i.e. the largest size.
 	var my_size = get_size();
 	var best = 'o';  // If the user doesn't specify, just give the largest
-	
+
 	if (my_size > 0) {
-		var best_diff = 100000000;
-		
+		var best_diff = Number.MAX_SAFE_INTEGER;
+
 		for (var k in sizes) {
 			var w = sizes[k]['width'];
 			var h = sizes[k]['height'];
-			
+
 			if (Math.abs(my_size - w) < best_diff) {
 				best = k;
 				best_diff = Math.abs(my_size - w);
@@ -143,27 +139,28 @@ function process_one_url_response(txt)
 			}
 		}
 	}
-	
+
 	print_console("Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
 	print_console("Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
-	
+
 	disp_url = 'https:' + sizes[best]['displayUrl'];
 	orig_url = 'https:' + sizes['o']['displayUrl'];
 	disp_w = sizes[best]['width'];
 	disp_h = sizes[best]['height'];
-	
+
 	print_outbox(build_html_string(disp_url, orig_url, disp_w, disp_h));
 	print_outbox('');
 }
 
-function i_pooped()
+function gogogo()
 {
 	var urlelem = document.getElementById('inbox');
 	var urls = urlelem.value.split("\n");
-	            
+
 	print_console("Starting");
-	
+
 	for (var i = 0; i < urls.length; ++i) {
+		if (urls[i].length == 0) continue;
 		getrequest(urls[i], process_one_url_response);
 	}
 }
