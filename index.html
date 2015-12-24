@@ -1,17 +1,27 @@
 <html>
 <head>
+	<link rel="stylesheet" type="text/css" href="style.css">
 	<title>Magical land of happiness</title>
 </head>
 
 <body>
 
 <h2>Put your flickr URLs here (one per line)</h2>
-<textarea rows="10" cols="120" wrap="off" id="inbox">
+<textarea rows="8" cols="120" wrap="off" id="inbox">
 </textarea><br /><br />
 
-Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)<br />
+<button onclick="gogogo()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="do_clear();">Clear the thing</button>&nbsp;&nbsp;&nbsp;
 
-<button onclick="gogogo()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="document.getElementById('outbox').value='';">Clear the thing</button>
+Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)<br /> <br />
+
+
+<ul class="images" id="imglist">
+</ul>
+
+<br />
+
+<span id="imgsel">
+</span>
 
 <h2>Your HTML will be emitted here</h2>
 
@@ -25,6 +35,17 @@ Image preferred size: <input type="text" size="7" value="2048" id="size"></input
 <script language="javascript">
 window.resizeTo(1024, 1024);
 window.moveTo(0,0);
+
+this.images = []
+
+function do_clear()
+{
+	document.getElementById('inbox').value = '';
+	document.getElementById('outbox').value = '';
+	document.getElementById('console').value = '';
+	this.images = '';
+	clear_images();
+}
 
 // Some boilerplate to make AJAX less heinous...
 // Makes some assumptions about our problem domain...
@@ -70,6 +91,38 @@ function print_outbox(txt)
 	outelem.value += txt + "\n";
 }
 
+// Add and remove images from the images list
+
+function add_image(url, idx)
+{
+    var listelem = document.getElementById('imglist');
+	var li = document.createElement('li');
+	var img = document.createElement('img');
+	img.setAttribute('src', url);
+	img.setAttribute('onclick', 'load_img(' + idx + ')');
+	li.appendChild(img);
+	listelem.appendChild(li);
+}
+
+function clear_images()
+{
+	var listelem = document.getElementById('imglist');
+	while (listelem.childNodes.length > 0) {
+		listelem.removeChild(listelem.childNodes[0]);
+	}
+	window.images = [];
+	clear_selected_image();
+}
+
+function clear_selected_image()
+{
+	var sel = document.getElementById('imgsel');
+
+	while (sel.childNodes.length > 0) {
+		sel.removeChild(sel.childNodes[0]);
+	}
+}
+
 function get_size()
 {
 	var sz = parseInt(document.getElementById('size').value);
@@ -82,6 +135,22 @@ function get_size()
 function build_html_string(disp_url, orig_url, width, height)
 {
 	return '<a href="' + orig_url + '"><img class="alignnone" src=" ' + disp_url + '" alt="" width="' + width + '" height="' + height + '" /></a>'
+}
+
+function load_img(idx)
+{
+	var img = window.images[idx];
+	var sel = document.getElementById('imgsel');
+	document.getElementById('outbox').value = '';
+
+	print_outbox(build_html_string(img.disp_url, img.orig_url, img.disp_w, img.disp_h));
+	print_outbox('');
+
+
+	i = document.createElement('img');
+	i.setAttribute('src', img.preview);
+	clear_selected_image();
+	sel.appendChild(i);
 }
 
 // Handle the response data as a text string
@@ -143,13 +212,20 @@ function process_one_url_response(txt)
 	print_console("Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
 	print_console("Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
 
+	var thumb_url = 'https:' + sizes['sq']['displayUrl'];
+	var prev_url = 'https:' + sizes['n']['displayUrl'];
 	disp_url = 'https:' + sizes[best]['displayUrl'];
 	orig_url = 'https:' + sizes['o']['displayUrl'];
 	disp_w = sizes[best]['width'];
 	disp_h = sizes[best]['height'];
 
+	var idx = window.images.length;
+	window.images.push({ disp_url: disp_url, orig_url: orig_url, preview: prev_url, disp_w: disp_w, disp_h: disp_h });
+
 	print_outbox(build_html_string(disp_url, orig_url, disp_w, disp_h));
 	print_outbox('');
+	add_image(thumb_url, idx);
+	document.getElementById('inbox').value='';
 }
 
 function gogogo()
