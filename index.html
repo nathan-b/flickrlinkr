@@ -12,7 +12,9 @@
 
 <button onclick="gogogo()">Do the thing</button>&nbsp;&nbsp;&nbsp;<button onclick="do_clear();">Clear the thing</button>&nbsp;&nbsp;&nbsp;
 
-Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)<br /> <br />
+Image preferred size: <input type="text" size="7" value="2048" id="size"></input> (Use 0 for largest available size)&nbsp;&nbsp;&nbsp;
+<input type="checkbox" name='bbcode' id='bbcode'>Emit bbcode
+<br /> <br />
 
 
 <ul class="images" id="imglist">
@@ -134,16 +136,28 @@ function get_size()
 
 function build_html_string(disp_url, orig_url, width, height)
 {
-	return '<a href="' + orig_url + '"><img class="alignnone" src=" ' + disp_url + '" alt="" width="' + width + '" height="' + height + '" /></a>'
+	return '<a href="' + orig_url + '"><img class="alignnone" src="' + disp_url + '" alt="" width="' + width + '" height="' + height + '" /></a>'
+}
+
+function build_bbcode_string(disp_url, orig_url, width, height)
+{
+	return '[url=' + orig_url + '][img width=' + width + ']' + disp_url + '[/img][/url]'
 }
 
 function load_img(idx)
 {
 	var img = window.images[idx];
 	var sel = document.getElementById('imgsel');
+	var outstr;
 	document.getElementById('outbox').value = '';
 
-	print_outbox(build_html_string(img.disp_url, img.orig_url, img.disp_w, img.disp_h));
+	if (document.getElementById('bbcode').checked) {
+		outstr = build_bbcode_string(img.disp_url, img.orig_url, img.disp_w, img.disp_h);
+	} else {
+		outstr = build_html_string(img.disp_url, img.orig_url, img.disp_w, img.disp_h);
+	}
+
+	print_outbox(outstr);
 	print_outbox('');
 
 
@@ -222,7 +236,14 @@ function process_one_url_response(txt)
 	var idx = window.images.length;
 	window.images.push({ disp_url: disp_url, orig_url: orig_url, preview: prev_url, disp_w: disp_w, disp_h: disp_h });
 
-	print_outbox(build_html_string(disp_url, orig_url, disp_w, disp_h));
+	var outstr;
+
+	if (document.getElementById('bbcode').checked) {
+		outstr = build_bbcode_string(disp_url, orig_url, disp_w, disp_h);
+	} else {
+		outstr = build_html_string(disp_url, orig_url, disp_w, disp_h);
+	}
+	print_outbox(outstr);
 	print_outbox('');
 	add_image(thumb_url, idx);
 	document.getElementById('inbox').value='';
