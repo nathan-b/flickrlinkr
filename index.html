@@ -27,7 +27,7 @@ Image preferred size: <input type="text" size="7" value="2048" id="size"></input
 
 <h2>Your HTML will be emitted here</h2>
 
-<textarea rows="35" cols="120" readonly id="outbox">
+<textarea rows="25" cols="120" readonly id="outbox">
 </textarea>
 
 <h3>Ignore anything below this line</h3>
@@ -62,7 +62,7 @@ function onreadystatechange(ajax)
 		if (ajax.in_progress) {
 			ajax.in_progress = false;
 			if (ajax.request.status == 200) {
-				ajax.callback_method(ajax.request.responseText);
+				ajax.callback_method(ajax.url, ajax.request.responseText);
 			}
 		}
 	}
@@ -72,6 +72,7 @@ function getrequest(url, callback)
 {
 	var ajax = new Object();
 	ajax.in_progress = true;
+	ajax.url = url;
 	ajax.callback_method = callback;
 	ajax.request = (window.XMLHttpRequest) ? new XMLHttpRequest() : new ActiveXObject("MSXML2.XMLHTTP");
 	ajax.request.onreadystatechange = function() { onreadystatechange(ajax) };
@@ -97,7 +98,7 @@ function print_outbox(txt)
 
 function add_image(url, idx)
 {
-    var listelem = document.getElementById('imglist');
+	var listelem = document.getElementById('imglist');
 	var li = document.createElement('li');
 	var img = document.createElement('img');
 	img.setAttribute('src', url);
@@ -168,9 +169,9 @@ function load_img(idx)
 }
 
 // Handle the response data as a text string
-function process_one_url_response(txt)
+function process_one_url_response(url, txt)
 {
-	print_console('Got response with text length ' + txt.length);
+	print_console(url + ': Got response with text length ' + txt.length);
 
 	// Gotta find the requisite JSON buried inside the text...
 	// because text processing in Javascript definitely doesn't make
@@ -179,14 +180,14 @@ function process_one_url_response(txt)
 	var arr = txt.split('Y.ClientApp.init(');
 
 	if (arr.length == 1) {
-		print_console('i died');
+		print_console(url + ': Could not find JSON text in response, aborting');
 		return;
 	}
 
 	var mxp = arr[1].split(')')[0];
 
 	if (!mxp) {
-		print_console('i pooped');
+		print_console(url + ': Could not parse response from flickr, aborting');
 		return;
 	}
 
@@ -200,11 +201,12 @@ function process_one_url_response(txt)
 	var sizes = img['modelExport']['photo-models'][0]['sizes'];
 
 	// flickr uses incomprehensible letters to represent its sizes. Forget that. Let's
-	// just try and find one that matches the user-preferred size. I'm assuming that
-	// 'o' is the original; i.e. the largest size.
+	// just try and find one that matches the user-preferred size. 'o' is the original; 
+	// i.e. the largest size.
 	var my_size = get_size();
 	var best = 'o';  // If the user doesn't specify, just give the largest
 
+	// Find the image with the size closest to the specified size, if given
 	if (my_size > 0) {
 		var best_diff = Number.MAX_SAFE_INTEGER;
 
@@ -223,19 +225,25 @@ function process_one_url_response(txt)
 		}
 	}
 
-	print_console("Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
-	print_console("Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
+	print_console(url + ": Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
+	print_console(url + ": Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
 
-	var thumb_url = 'https:' + sizes['sq']['displayUrl'];
-	var prev_url = 'https:' + sizes['n']['displayUrl'];
-	disp_url = 'https:' + sizes[best]['displayUrl'];
-	orig_url = 'https:' + sizes['o']['displayUrl'];
+	// We store a bunch of metadata about the image in the thumbnail list to avoid future lookups
+	// It will be super fast right up until you start paging :)
+	var thumb_url = 'https:' + sizes['sq']['displayUrl']; // URL of the tiny thumbnail image
+	var prev_url = 'https:' + sizes['n']['displayUrl'];   // URL of the slightly larger preview image
+	disp_url = 'https:' + sizes[best]['displayUrl'];      // URL to be displayed (i.e. the size the user specified)
+	orig_url = 'https:' + sizes['o']['displayUrl'];       // URL to be linked (i.e. the original quality image)
 	disp_w = sizes[best]['width'];
 	disp_h = sizes[best]['height'];
 
+	// Stick the new image on the end of the global images array. The index in the array is associated with the image
+	// stored in the image list so we can grab all this metadata whenever the user clicks on an image in the list
 	var idx = window.images.length;
 	window.images.push({ disp_url: disp_url, orig_url: orig_url, preview: prev_url, disp_w: disp_w, disp_h: disp_h });
 
+	// Build and display the string. Why do it here? Because that way the user will have a convenient list of all the strings
+	// immediately after processing.
 	var outstr;
 
 	if (document.getElementById('bbcode').checked) {
@@ -245,7 +253,11 @@ function process_one_url_response(txt)
 	}
 	print_outbox(outstr);
 	print_outbox('');
+
+	// Add the image to the image list
 	add_image(thumb_url, idx);
+
+	// Clear the input box for the next list of images
 	document.getElementById('inbox').value='';
 }
 
@@ -254,7 +266,7 @@ function gogogo()
 	var urlelem = document.getElementById('inbox');
 	var urls = urlelem.value.split("\n");
 
-	print_console("Starting");
+	print_console("Starting with " + urls.length + " urls");
 
 	for (var i = 0; i < urls.length; ++i) {
 		if (urls[i].length == 0) continue;
