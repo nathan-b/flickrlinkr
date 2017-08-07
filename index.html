@@ -62,18 +62,24 @@ function onreadystatechange(ajax)
 		if (ajax.in_progress) {
 			ajax.in_progress = false;
 			if (ajax.request.status == 200) {
-				ajax.callback_method(ajax.url, ajax.request.responseText);
+				ajax.callback_method(ajax.url, ajax.request.responseText, ajax.tries);
+			} else if (ajax.request.status == 403) {
+				// Flickr has started throttling with 403 errors, apparently. Just retry.
+				window.setTimeout(getrequest(ajax.url, ajax.callback_method, ajax.tries), 50);
+			} else {
+				print_console("Received unexpected status " + ajax.request.status);
 			}
 		}
 	}
 }
 
-function getrequest(url, callback)
+function getrequest(url, callback, count)
 {
 	var ajax = new Object();
 	ajax.in_progress = true;
 	ajax.url = url;
 	ajax.callback_method = callback;
+	ajax.tries = count;
 	ajax.request = (window.XMLHttpRequest) ? new XMLHttpRequest() : new ActiveXObject("MSXML2.XMLHTTP");
 	ajax.request.onreadystatechange = function() { onreadystatechange(ajax) };
 	ajax.request.open('GET', url, true);
@@ -168,8 +174,10 @@ function load_img(idx)
 	sel.appendChild(i);
 }
 
+this.max_retry_count = 10;
+
 // Handle the response data as a text string
-function process_one_url_response(url, txt)
+function process_one_url_response(url, txt, tries)
 {
 	print_console(url + ': Got response with text length ' + txt.length);
 
@@ -180,8 +188,11 @@ function process_one_url_response(url, txt)
 	var arr = txt.split('Y.ClientApp.init(');
 
 	if (arr.length == 1) {
-		print_console(url + ': Could not find JSON text in response, aborting');
-		return;
+		if (tries > this.max_retry_count) {
+			print_console(url + ': Could not find JSON text in response, aborting');
+			return;
+		}
+		getrequest(url, process_one_url_response, tries + 1);
 	}
 
 	var mxp = arr[1].split(')')[0];
@@ -270,7 +281,7 @@ function gogogo()
 
 	for (var i = 0; i < urls.length; ++i) {
 		if (urls[i].length == 0) continue;
-		getrequest(urls[i], process_one_url_response);
+		getrequest(urls[i], process_one_url_response, 0);
 	}
 }
 
