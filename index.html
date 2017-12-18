@@ -209,7 +209,7 @@ function process_one_url_response(url, txt, tries)
 	var json = '(' + mxp + ')';
 
 	var img = eval(json);
-	var sizes = img['modelExport']['photo-models'][0]['sizes'];
+	var sizes = img['modelExport']['main']['photo-models'][0]['sizes'];
 
 	// flickr uses incomprehensible letters to represent its sizes. Forget that. Let's
 	// just try and find one that matches the user-preferred size. 'o' is the original; 
