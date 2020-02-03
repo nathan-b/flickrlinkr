@@ -241,10 +241,10 @@ function process_one_url_response(url, txt, tries)
 
 	// We store a bunch of metadata about the image in the thumbnail list to avoid future lookups
 	// It will be super fast right up until you start paging :)
-	var thumb_url = sizes['sq']['displayUrl']; // URL of the tiny thumbnail image
-	var prev_url = sizes['n']['displayUrl'];   // URL of the slightly larger preview image
-	disp_url = sizes[best]['displayUrl'];      // URL to be displayed (i.e. the size the user specified)
-	orig_url = sizes['o']['displayUrl'];       // URL to be linked (i.e. the original quality image)
+	var thumb_url = 'https:' + sizes['sq']['displayUrl']; // URL of the tiny thumbnail image
+	var prev_url = 'https:' + sizes['n']['displayUrl'];   // URL of the slightly larger preview image
+	disp_url = 'https:' + sizes[best]['displayUrl'];      // URL to be displayed (i.e. the size the user specified)
+	orig_url = 'https:' + sizes['o']['displayUrl'];       // URL to be linked (i.e. the original quality image)
 	disp_w = sizes[best]['width'];
 	disp_h = sizes[best]['height'];
 
