@@ -34,7 +34,7 @@ Image preferred size: <input type="text" size="7" value="800" id="size"></input>
 <textarea rows="10" cols="120" readonly id="console">
 </textarea>
 
-<script language="javascript">
+<script>
 window.resizeTo(1024, 1024);
 window.moveTo(0,0);
 
@@ -49,73 +49,56 @@ function do_clear()
 	clear_images();
 }
 
-// Some boilerplate to make AJAX less heinous...
-// Makes some assumptions about our problem domain...
-function onreadystatechange(ajax)
+// Fetch wrapper with retry logic for Flickr throttling
+async function getrequest(url, callback, count)
 {
-	switch(ajax.request.readyState)
-	{
-	case 1: break;
-	case 2: break;
-	case 3: break;
-	case 4:
-		if (ajax.in_progress) {
-			ajax.in_progress = false;
-			if (ajax.request.status == 200) {
-				ajax.callback_method(ajax.url, ajax.request.responseText, ajax.tries);
-			} else if (ajax.request.status == 403) {
-				// Flickr has started throttling with 403 errors, apparently. Just retry.
-				window.setTimeout(getrequest(ajax.url, ajax.callback_method, ajax.tries), 50);
-			} else {
-				print_console("Received unexpected status " + ajax.request.status);
-			}
-		}
-	}
-}
+	try {
+		const response = await fetch(url);
 
-function getrequest(url, callback, count)
-{
-	var ajax = new Object();
-	ajax.in_progress = true;
-	ajax.url = url;
-	ajax.callback_method = callback;
-	ajax.tries = count;
-	ajax.request = (window.XMLHttpRequest) ? new XMLHttpRequest() : new ActiveXObject("MSXML2.XMLHTTP");
-	ajax.request.onreadystatechange = function() { onreadystatechange(ajax) };
-	ajax.request.open('GET', url, true);
-	ajax.request.send(url);
+		if (response.status === 200) {
+			const text = await response.text();
+			callback(url, text, count);
+		} else if (response.status === 403) {
+			// Flickr has started throttling with 403 errors, apparently. Just retry.
+			window.setTimeout(() => getrequest(url, callback, count), 50);
+		} else {
+			print_console(`Received unexpected status ${response.status}`);
+		}
+	} catch (error) {
+		print_console(`Network error fetching ${url}: ${error.message}`);
+	}
 }
 
 // Some functions to print to our various textboxes (SUPAR LAZY PROGRAMMER GO)
 
 function print_console(txt)
 {
-	var outelem = document.getElementById('console');
-	outelem.value += txt + "\n"
+	const outelem = document.getElementById('console');
+	outelem.value += `${txt}\n`
 }
 
 function print_outbox(txt)
 {
-	var outelem = document.getElementById('outbox');
-	outelem.value += txt + "\n";
+	const outelem = document.getElementById('outbox');
+	outelem.value += `${txt}\n`;
 }
 
 // Add and remove images from the images list
 
 function add_image(url, idx)
 {
-	var listelem = document.getElementById('imglist');
-	var li = document.createElement('li');
-	var img = document.createElement('img');
+	const listelem = document.getElementById('imglist');
+	const li = document.createElement('li');
+	const img = document.createElement('img');
 	img.setAttribute('src', url);
-	img.setAttribute('onclick', 'load_img(' + idx + ')');
+	img.setAttribute('onclick', `load_img(${idx})`);
 	li.appendChild(img);
 	listelem.appendChild(li);
 }
 
 function clear_images()
 {
-	var listelem = document.getElementById('imglist');
+	const listelem = document.getElementById('imglist');
 	while (listelem.childNodes.length > 0) {
 		listelem.removeChild(listelem.childNodes[0]);
 	}
@@ -125,7 +108,7 @@ function clear_images()
 
 function clear_selected_image()
 {
-	var sel = document.getElementById('imgsel');
+	const sel = document.getElementById('imgsel');
 
 	while (sel.childNodes.length > 0) {
 		sel.removeChild(sel.childNodes[0]);
@@ -134,7 +117,7 @@ function clear_selected_image()
 
 function get_size()
 {
-	var sz = parseInt(document.getElementById('size').value);
+	let sz = parseInt(document.getElementById('size').value);
 	if (!sz) {
 		sz = 0;
 	}
@@ -143,19 +126,19 @@ function get_size()
 
 function build_html_string(disp_url, orig_url, width, height)
 {
-	return '<a href="' + orig_url + '"><img class="alignnone" src="' + disp_url + '" alt="" width="' + width + '" height="' + height + '" /></a>'
+	return `<a href="${orig_url}"><img class="alignnone" src="${disp_url}" alt="" width="${width}" height="${height}" /></a>`
 }
 
 function build_bbcode_string(disp_url, orig_url, width, height)
 {
-	return '[url=' + orig_url + '][img width=' + width + ']' + disp_url + '[/img][/url]'
+	return `[url=${orig_url}][img width=${width}]${disp_url}[/img][/url]`
 }
 
 function load_img(idx)
 {
-	var img = window.images[idx];
-	var sel = document.getElementById('imgsel');
-	var outstr;
+	const img = window.images[idx];
+	const sel = document.getElementById('imgsel');
+	let outstr;
 	document.getElementById('outbox').value = '';
 
 	if (document.getElementById('bbcode').checked) {
@@ -168,7 +151,7 @@ function load_img(idx)
 	print_outbox('');
 
 
-	i = document.createElement('img');
+	const i = document.createElement('img');
 	i.setAttribute('src', img.preview);
 	clear_selected_image();
 	sel.appendChild(i);
@@ -176,54 +159,138 @@ function load_img(idx)
 
 this.max_retry_count = 10;
 
+// Validate that URL has proper scheme and is a Flickr URL
+function is_url_valid(url)
+{
+	// Check for http/https scheme
+	if (!url.startsWith('http://') && !url.startsWith('https://')) {
+		return false;
+	}
+
+	// Check if it's a Flickr domain
+	try {
+		const urlObj = new URL(url);
+		const hostname = urlObj.hostname.toLowerCase();
+
+		// Accept flickr.com, www.flickr.com, and flic.kr (Flickr's URL shortener)
+		return hostname.endsWith('flickr.com') ||
+		       hostname.endsWith('flic.kr');
+	} catch (e) {
+		// Invalid URL format
+		return false;
+	}
+}
+
 // Handle the response data as a text string
 function process_one_url_response(url, txt, tries)
 {
-	print_console(url + ': Got response with text length ' + txt.length);
+	print_console(`${url}: Got response with text length ${txt.length}`);
 
-	// Gotta find the requisite JSON buried inside the text...
-	// because text processing in Javascript definitely doesn't make
-	// me want to kill myself...
+	// Extract the data from Flickr's page
+	// Try multiple strategies to be robust against page structure changes
+	let mxp = null;
 
-	var arr = txt.split('Y.ClientApp.init(');
-
-	if (arr.length == 1) {
-		if (tries > this.max_retry_count) {
-			print_console(url + ': Could not find JSON text in response, aborting');
-			return;
+	// Strategy 1: Look for Y.ClientApp.init( pattern (current Flickr format)
+	const clientAppMatch = txt.match(/Y\.ClientApp\.init\s*\(/);
+	if (clientAppMatch) {
+		const startPos = clientAppMatch.index + clientAppMatch[0].length;
+		// Find the matching closing parenthesis
+		let depth = 1;
+		let endPos = startPos;
+		for (let i = startPos; i < txt.length && depth > 0; i++) {
+			if (txt[i] === '(') depth++;
+			if (txt[i] === ')') depth--;
+			if (depth === 0) {
+				endPos = i;
+				break;
+			}
 		}
-		getrequest(url, process_one_url_response, tries + 1);
+		if (depth === 0) {
+			mxp = txt.substring(startPos, endPos);
+		}
 	}
 
-	var mxp = arr[1].split(')')[0];
+	// Strategy 2: If Strategy 1 failed, look for modelExport directly
+	if (!mxp) {
+		const modelExportMatch = txt.match(/modelExport\s*:\s*\{/);
+		if (modelExportMatch) {
+			print_console(`${url}: Using fallback extraction method`);
+			// Try to extract just the modelExport object
+			// This is a simplified approach - look for the pattern in the initialization
+			const initMatch = txt.match(/\{\s*initialView\s*:[\s\S]*?modelExport\s*:\s*(\{[\s\S]*?\})\s*,\s*auth\s*:/);
+			if (initMatch && initMatch[1]) {
+				mxp = `{modelExport: ${initMatch[1]}}`;
+			}
+		}
+	}
 
 	if (!mxp) {
-		print_console(url + ': Could not parse response from flickr, aborting');
+		if (tries > this.max_retry_count) {
+			print_console(`${url}: Could not find data in response after ${tries} attempts, aborting`);
+			return;
+		}
+		print_console(`${url}: Retrying... (attempt ${tries + 1})`);
+		getrequest(url, process_one_url_response, tries + 1);
 		return;
 	}
 
-	// I need to define these things here because they're used in the JSON
-	var auth = '';
-	var reqId = '';
+	let img;
+	try {
+		// Try parsing as JSON first (safest option)
+		img = JSON.parse(mxp);
+	} catch (e) {
+		// If JSON parsing fails, the data is likely JavaScript object notation
+		// Use Function constructor as a safer alternative to eval (no local scope access)
+		// Define variables that Flickr's data might reference
+		try {
+			const func = new Function('auth', 'reqId', 'return ' + mxp);
+			img = func('', '');
+		} catch (e2) {
+			print_console(`${url}: Failed to parse response data: ${e2.message}`);
+			return;
+		}
+	}
 
-	var json = '(' + mxp + ')';
+	// Navigate the data structure safely
+	// Flickr's new structure: modelExport.main['photo-models'][0].data.sizes.data
+	if (!img || !img.modelExport || !img.modelExport.main || !img.modelExport.main['photo-models'] || !img.modelExport.main['photo-models'][0]) {
+		print_console(`${url}: Unexpected data structure - cannot find photo-models`);
+		return;
+	}
 
-	var img = eval(json);
-	var sizes = img['modelExport']['main']['photo-models'][0]['sizes'];
+	const photoModel = img.modelExport.main['photo-models'][0].data || img.modelExport.main['photo-models'][0];
+	const sizesWrapper = photoModel.sizes;
+
+	if (!sizesWrapper) {
+		print_console(`${url}: Missing sizes object`);
+		return;
+	}
+
+	// Sizes might be nested in a 'data' property (new format) or directly available (old format)
+	const sizes = sizesWrapper.data || sizesWrapper;
 
 	// flickr uses incomprehensible letters to represent its sizes. Forget that. Let's
-	// just try and find one that matches the user-preferred size. 'o' is the original; 
+	// just try and find one that matches the user-preferred size. 'o' is the original;
 	// i.e. the largest size.
-	var my_size = get_size();
-	var best = 'o';  // If the user doesn't specify, just give the largest
+	const my_size = get_size();
+	let best = 'o';  // If the user doesn't specify, just give the largest
+
+	// Helper function to get size data (handles both old and new format)
+	const getSizeData = (sizeKey) => {
+		const sizeObj = sizes[sizeKey];
+		return sizeObj && sizeObj.data ? sizeObj.data : sizeObj;
+	};
 
 	// Find the image with the size closest to the specified size, if given
 	if (my_size > 0) {
-		var best_diff = Number.MAX_SAFE_INTEGER;
+		let best_diff = Number.MAX_SAFE_INTEGER;
 
-		for (var k in sizes) {
-			var w = sizes[k]['width'];
-			var h = sizes[k]['height'];
+		for (const k in sizes) {
+			const sizeData = getSizeData(k);
+			if (!sizeData) continue;
+
+			const w = sizeData.width;
+			const h = sizeData.height;
 
 			if (Math.abs(my_size - w) < best_diff) {
 				best = k;
@@ -236,26 +303,36 @@ function process_one_url_response(url, txt, tries)
 		}
 	}
 
-	print_console(url + ": Best size is " + best + ": " + sizes[best]['width'] + "x" + sizes[best]['height']);
-	print_console(url + ": Original size is " + sizes['o']['width'] + "x" + sizes['o']['height']);
+	const bestData = getSizeData(best);
+	const origData = getSizeData('o');
+	const sqData = getSizeData('sq');
+	const nData = getSizeData('n');
+
+	if (!bestData || !origData || !sqData || !nData) {
+		print_console(`${url}: Missing required size data`);
+		return;
+	}
+
+	print_console(`${url}: Best size is ${best}: ${bestData.width}x${bestData.height}`);
+	print_console(`${url}: Original size is ${origData.width}x${origData.height}`);
 
 	// We store a bunch of metadata about the image in the thumbnail list to avoid future lookups
 	// It will be super fast right up until you start paging :)
-	var thumb_url = 'https:' + sizes['sq']['displayUrl']; // URL of the tiny thumbnail image
-	var prev_url = 'https:' + sizes['n']['displayUrl'];   // URL of the slightly larger preview image
-	disp_url = 'https:' + sizes[best]['displayUrl'];      // URL to be displayed (i.e. the size the user specified)
-	orig_url = 'https:' + sizes['o']['displayUrl'];       // URL to be linked (i.e. the original quality image)
-	disp_w = sizes[best]['width'];
-	disp_h = sizes[best]['height'];
+	const thumb_url = `https:${sqData.displayUrl}`; // URL of the tiny thumbnail image
+	const prev_url = `https:${nData.displayUrl}`;   // URL of the slightly larger preview image
+	const disp_url = `https:${bestData.displayUrl}`;      // URL to be displayed (i.e. the size the user specified)
+	const orig_url = `https:${origData.displayUrl}`;       // URL to be linked (i.e. the original quality image)
+	const disp_w = bestData.width;
+	const disp_h = bestData.height;
 
 	// Stick the new image on the end of the global images array. The index in the array is associated with the image
 	// stored in the image list so we can grab all this metadata whenever the user clicks on an image in the list
-	var idx = window.images.length;
+	const idx = window.images.length;
 	window.images.push({ disp_url: disp_url, orig_url: orig_url, preview: prev_url, disp_w: disp_w, disp_h: disp_h });
 
 	// Build and display the string. Why do it here? Because that way the user will have a convenient list of all the strings
 	// immediately after processing.
-	var outstr;
+	let outstr;
 
 	if (document.getElementById('bbcode').checked) {
 		outstr = build_bbcode_string(disp_url, orig_url, disp_w, disp_h);
@@ -274,13 +351,19 @@ function process_one_url_response(url, txt, tries)
 
 function gogogo()
 {
-	var urlelem = document.getElementById('inbox');
-	var urls = urlelem.value.split("\n");
+	const urlelem = document.getElementById('inbox');
+	const urls = urlelem.value.split("\n");
 
-	print_console("Starting with " + urls.length + " urls");
+	print_console(`Starting with ${urls.length} urls`);
 
-	for (var i = 0; i < urls.length; ++i) {
+	for (let i = 0; i < urls.length; ++i) {
 		if (urls[i].length == 0) continue;
+
+		if (!is_url_valid(urls[i])) {
+			print_console(`Invalid URL (must be a Flickr URL from flickr.com or flic.kr): ${urls[i]}`);
+			continue;
+		}
+
 		getrequest(urls[i], process_one_url_response, 0);
 	}
 }
